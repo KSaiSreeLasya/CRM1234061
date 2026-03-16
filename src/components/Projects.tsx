@@ -147,6 +147,8 @@ const mapStateToFullName = (state: string): string => {
 
 const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [activeStateFilter, setActiveStateFilter] = useState<string | null>(stateFilter || null);
+  const [stateCounts, setStateCounts] = useState({ TG: 0, AP: 0, Chitoor: 0 });
   const { isAdmin, assignedRegions } = useAuth();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const navigate = useNavigate();
@@ -270,6 +272,19 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
       // Set initial projects (will be filtered by search if needed)
       setProjects(primaryProjects);
 
+      // Calculate counts by state (case insensitive)
+      const tgCount = primaryProjects.filter(p => {
+        const state = (p.state || '').toLowerCase();
+        return state.includes('telangana') || state === 'tg';
+      }).length;
+      const apCount = primaryProjects.filter(p => {
+        const state = (p.state || '').toLowerCase();
+        return state.includes('andhra') || state === 'ap';
+      }).length;
+      const chitoorCount = canIncludeChitoor ? chitoorProjectsData.length : 0;
+
+      setStateCounts({ TG: tgCount, AP: apCount, Chitoor: chitoorCount });
+
       setCombinedTotals({
         totalProjects: primaryTotals.count + (canIncludeChitoor ? chitoorTotals.count : 0),
         totalRevenue: primaryTotals.revenue + (canIncludeChitoor ? chitoorTotals.revenue : 0),
@@ -311,10 +326,10 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
 
   // Apply filters and search whenever activeFilters or searchTerm changes
   const applyFilters = useCallback(() => {
-    // Combine regular projects and Chitoor projects for search when viewing "All Projects"
+    // Determine if we can include Chitoor projects
     const canIncludeChitoor = !stateFilter && (isAdmin || !Array.isArray(assignedRegions) || assignedRegions.length === 0 || assignedRegions.includes('Chitoor'));
     let allProjectsToSearch = [...allProjects];
-    
+
     // Add Chitoor projects to searchable list (transform them to match Project structure for search)
     if (canIncludeChitoor && allChitoorProjects.length > 0) {
       const transformedChitoor = allChitoorProjects.map((cp: any) => ({
@@ -337,7 +352,7 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
         start_date: cp.date_of_order || cp.created_at || '',
         created_at: cp.created_at || '',
         kwh: cp.capacity || 0,
-        state: 'Andhra Pradesh',
+        state: 'Chitoor',
         dealing_personal: 'Project Manager' as const,
         lead_source: cp.lead_source || '',
         lead_finished_by: cp.lead_finished_by || '',
@@ -347,8 +362,24 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
       }));
       allProjectsToSearch = [...allProjects, ...transformedChitoor];
     }
-    
+
+    // Filter by state if activeStateFilter is set
     let filtered = allProjectsToSearch;
+    if (activeStateFilter) {
+      filtered = filtered.filter(project => {
+        const projectState = (project.state || '').toLowerCase();
+        if (activeStateFilter === 'TG') {
+          return projectState.includes('telangana') || projectState === 'tg';
+        } else if (activeStateFilter === 'AP') {
+          return projectState.includes('andhra') || projectState === 'ap';
+        } else if (activeStateFilter === 'Chitoor') {
+          return projectState.includes('chitoor') || projectState === 'chitoor';
+        }
+        return true;
+      });
+    }
+
+    // Apply additional filters
     if (activeFilters.length > 0) {
       filtered = filtered.filter(project => {
         return activeFilters.every(filter => {
@@ -357,6 +388,8 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
         });
       });
     }
+
+    // Apply search term
     if (searchTerm.trim() !== '') {
       const keyword = searchTerm.toLowerCase();
       filtered = filtered.filter(project =>
@@ -366,7 +399,7 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
       );
     }
     setProjects(filtered);
-  }, [activeFilters, allProjects, allChitoorProjects, searchTerm, stateFilter, isAdmin, assignedRegions]);
+  }, [activeFilters, allProjects, allChitoorProjects, searchTerm, stateFilter, activeStateFilter, isAdmin, assignedRegions]);
 
   useEffect(() => {
     applyFilters();
@@ -708,10 +741,32 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
     return type === 'DCR' ? 'green' : 'blue';
   };
 
-  const totalProjectsCount = allProjects.length;
-  const activeCount = stateFilter ? allProjects.filter(p => (p.status || '').toLowerCase() === 'active').length : (combinedTotals.active || 0);
-  const completedCount = stateFilter ? allProjects.filter(p => (p.status || '').toLowerCase() === 'completed').length : (combinedTotals.completed || 0);
-  const cancelledCount = stateFilter ? allProjects.filter(p => (p.status || '').toLowerCase() === 'cancelled').length : (combinedTotals.cancelled || 0);
+  // Calculate stats based on active state filter
+  let filteredProjectsForStats = [...allProjects];
+  if (activeStateFilter) {
+    filteredProjectsForStats = filteredProjectsForStats.filter(project => {
+      const projectState = (project.state || '').toLowerCase();
+      if (activeStateFilter === 'TG') {
+        return projectState.includes('telangana') || projectState === 'tg';
+      } else if (activeStateFilter === 'AP') {
+        return projectState.includes('andhra') || projectState === 'ap';
+      }
+      return true;
+    });
+  } else if (activeStateFilter === 'Chitoor') {
+    filteredProjectsForStats = [...allChitoorProjects].map((cp: any) => ({
+      status: (cp.project_status || '').toLowerCase() === 'completed' ? 'completed' :
+              (cp.project_status || '').toLowerCase() === 'cancelled' ? 'cancelled' : 'active'
+    }));
+  }
+
+  const totalProjectsCount = activeStateFilter === 'TG' ? stateCounts.TG :
+                             activeStateFilter === 'AP' ? stateCounts.AP :
+                             activeStateFilter === 'Chitoor' ? stateCounts.Chitoor :
+                             (combinedTotals.totalProjects || 0);
+  const activeCount = filteredProjectsForStats.filter(p => (p.status || '').toLowerCase() === 'active').length;
+  const completedCount = filteredProjectsForStats.filter(p => (p.status || '').toLowerCase() === 'completed').length;
+  const cancelledCount = filteredProjectsForStats.filter(p => (p.status || '').toLowerCase() === 'cancelled').length;
 
   const StatTile: React.FC<{ title: string; value: number; icon: string; help?: string }> = ({ title, value, icon, help }) => {
     const tileBg = cardBg;
@@ -742,11 +797,10 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
             <Button variant="outline" size="sm" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/welcome'))}>← Back</Button>
             <Box>
               <Heading size="lg" color="gray.800" mb={2}>
-                {stateFilter ? `${stateFilter} Projects` : 'Projects Management'}
+                Projects Management
               </Heading>
               <Text color="gray.600">
-                {projects.length} of {stateFilter ? allProjects.length : (combinedTotals.totalProjects || allProjects.length)} projects
-                {stateFilter && ` in ${stateFilter}`}
+                {projects.length} of {combinedTotals.totalProjects || allProjects.length} total projects
               </Text>
             </Box>
           </HStack>
@@ -778,9 +832,120 @@ const Projects: React.FC<ProjectsProps> = ({ stateFilter }) => {
           </HStack>
         </Flex>
 
+        {/* State Projects Filter Section */}
+        <Box>
+          <Heading size="sm" color="gray.600" mb={4} textTransform="uppercase" letterSpacing="wide">
+            State Projects
+          </Heading>
+          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+            {/* All Projects */}
+            <Card
+              bg={!activeStateFilter ? 'blue.50' : cardBg}
+              border="2px solid"
+              borderColor={!activeStateFilter ? 'blue.300' : borderColor}
+              cursor="pointer"
+              onClick={() => setActiveStateFilter(null)}
+              transition="all 0.2s"
+              _hover={{ transform: 'translateY(-2px)', boxShadow: 'md' }}
+            >
+              <CardBody>
+                <VStack spacing={3} align="center">
+                  <Text fontSize="2xl">📁</Text>
+                  <Box textAlign="center">
+                    <Heading size="sm" color="gray.800">ALL PROJECTS</Heading>
+                    <Text fontSize="2xl" fontWeight="bold" color="brand.600" mt={2}>
+                      {combinedTotals.totalProjects}
+                    </Text>
+                    <Text fontSize="xs" color="gray.600" mt={1}>Total Projects</Text>
+                  </Box>
+                </VStack>
+              </CardBody>
+            </Card>
+
+            {/* TG Projects */}
+            <Card
+              bg={activeStateFilter === 'TG' ? 'blue.50' : cardBg}
+              border="2px solid"
+              borderColor={activeStateFilter === 'TG' ? 'blue.300' : borderColor}
+              cursor="pointer"
+              onClick={() => setActiveStateFilter('TG')}
+              transition="all 0.2s"
+              _hover={{ transform: 'translateY(-2px)', boxShadow: 'md' }}
+            >
+              <CardBody>
+                <VStack spacing={3} align="center">
+                  <Text fontSize="2xl">🏛️</Text>
+                  <Box textAlign="center">
+                    <Heading size="sm" color="gray.800">TG</Heading>
+                    <Text fontSize="2xl" fontWeight="bold" color="brand.600" mt={2}>
+                      {stateCounts.TG}
+                    </Text>
+                    <Text fontSize="xs" color="gray.600" mt={1}>Telangana</Text>
+                  </Box>
+                </VStack>
+              </CardBody>
+            </Card>
+
+            {/* AP Projects */}
+            <Card
+              bg={activeStateFilter === 'AP' ? 'blue.50' : cardBg}
+              border="2px solid"
+              borderColor={activeStateFilter === 'AP' ? 'blue.300' : borderColor}
+              cursor="pointer"
+              onClick={() => setActiveStateFilter('AP')}
+              transition="all 0.2s"
+              _hover={{ transform: 'translateY(-2px)', boxShadow: 'md' }}
+            >
+              <CardBody>
+                <VStack spacing={3} align="center">
+                  <Text fontSize="2xl">🏢</Text>
+                  <Box textAlign="center">
+                    <Heading size="sm" color="gray.800">AP</Heading>
+                    <Text fontSize="2xl" fontWeight="bold" color="brand.600" mt={2}>
+                      {stateCounts.AP}
+                    </Text>
+                    <Text fontSize="xs" color="gray.600" mt={1}>Andhra Pradesh</Text>
+                  </Box>
+                </VStack>
+              </CardBody>
+            </Card>
+
+            {/* CHITOOR Projects */}
+            <Card
+              bg={activeStateFilter === 'Chitoor' ? 'blue.50' : cardBg}
+              border="2px solid"
+              borderColor={activeStateFilter === 'Chitoor' ? 'blue.300' : borderColor}
+              cursor="pointer"
+              onClick={() => setActiveStateFilter('Chitoor')}
+              transition="all 0.2s"
+              _hover={{ transform: 'translateY(-2px)', boxShadow: 'md' }}
+            >
+              <CardBody>
+                <VStack spacing={3} align="center">
+                  <Text fontSize="2xl">🏘️</Text>
+                  <Box textAlign="center">
+                    <Heading size="sm" color="gray.800">CHITOOR</Heading>
+                    <Text fontSize="2xl" fontWeight="bold" color="brand.600" mt={2}>
+                      {stateCounts.Chitoor}
+                    </Text>
+                    <Text fontSize="xs" color="gray.600" mt={1}>Chittoor</Text>
+                  </Box>
+                </VStack>
+              </CardBody>
+            </Card>
+          </SimpleGrid>
+        </Box>
+
         {/* Analytics cards */}
+        {activeStateFilter && (
+          <Box>
+            <Heading size="sm" color="gray.600" mb={4} textTransform="uppercase" letterSpacing="wide">
+              {activeStateFilter === 'TG' ? 'Telangana' : activeStateFilter === 'AP' ? 'Andhra Pradesh' : 'Chittoor'} Projects
+            </Heading>
+          </Box>
+        )}
         <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
-          <StatTile title="All projects" value={stateFilter ? totalProjectsCount : (combinedTotals.totalProjects || totalProjectsCount)} icon="📁" help="Total Projects" />
+          <StatTile title="All projects" value={totalProjectsCount} icon="📁" help="Total Projects" />
           <StatTile title="In progress" value={activeCount} icon="📈" help="Active Projects" />
           <StatTile title="Successfully delivered" value={completedCount} icon="✅" help="Completed Projects" />
           <StatTile title="Cancelled Projects" value={cancelledCount} icon="❌" help="Withdrawn Projects" />
