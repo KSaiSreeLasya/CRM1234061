@@ -87,24 +87,27 @@ const ProjectAnalysis = () => {
 
   // Helper function to categorize state into TG, AP, or Chitoor
   const getStateCategory = (state: string): string => {
-    const normalized = state.toLowerCase().trim();
+    if (!state) return 'Chitoor';
 
-    // Check if state is or contains Telangana
-    if (normalized === 'telangana' || normalized === 'tg') {
+    const normalized = state.toLowerCase().trim().replace(/\s+/g, ' ');
+
+    // Check if state contains Telangana
+    if (normalized.includes('telangana') || normalized === 'tg' || normalized === 't g') {
       return 'TG';
     }
 
-    // Check if state is or contains Andhra Pradesh
-    if (normalized === 'andhra pradesh' || normalized === 'ap') {
+    // Check if state contains Andhra Pradesh
+    if (normalized.includes('andhra pradesh') || normalized === 'ap' || normalized === 'a p') {
       return 'AP';
     }
 
     // Check if it's Chitoor
-    if (normalized === 'chitoor') {
+    if (normalized === 'chitoor' || normalized.includes('chitoor')) {
       return 'Chitoor';
     }
 
-    return 'Chitoor'; // Default to Chitoor for any unrecognized state
+    // Default: treat unknown states as Chitoor
+    return 'Chitoor';
   };
 
   useEffect(() => {
@@ -258,6 +261,17 @@ const ProjectAnalysis = () => {
         }));
 
         const allProjects = [...transformedProjects, ...chitoorProjectsData];
+
+        // Debug: Log state values to understand what we're working with
+        console.log('Total projects fetched:', allProjects.length);
+        console.log('Sample states:', allProjects.slice(0, 5).map(p => ({ customer: p.customer_name, state: p.state })));
+
+        // Count by category
+        const tgCount = allProjects.filter(p => getStateCategory(p.state) === 'TG').length;
+        const apCount = allProjects.filter(p => getStateCategory(p.state) === 'AP').length;
+        const chitoorCount = allProjects.filter(p => getStateCategory(p.state) === 'Chitoor').length;
+        console.log(`Categories: TG=${tgCount}, AP=${apCount}, Chitoor=${chitoorCount}`);
+
         setProjectData(allProjects);
       } else {
         // If analysisData exists, check for Chitoor projects too
