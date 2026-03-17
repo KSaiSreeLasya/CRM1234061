@@ -89,13 +89,13 @@ const ProjectAnalysis = () => {
   const getStateCategory = (state: string): string => {
     const normalized = state.toLowerCase().trim();
 
-    // Check if state contains Telangana
-    if (normalized.includes('telangana') || normalized === 'tg') {
+    // Check if state is or contains Telangana
+    if (normalized === 'telangana' || normalized === 'tg') {
       return 'TG';
     }
 
-    // Check if state contains Andhra Pradesh
-    if (normalized.includes('andhra pradesh') || normalized === 'ap') {
+    // Check if state is or contains Andhra Pradesh
+    if (normalized === 'andhra pradesh' || normalized === 'ap') {
       return 'AP';
     }
 
@@ -104,8 +104,7 @@ const ProjectAnalysis = () => {
       return 'Chitoor';
     }
 
-    // Any other state goes to "Other" (will be in Chitoor category for now)
-    return 'Other';
+    return 'Chitoor'; // Default to Chitoor for any unrecognized state
   };
 
   useEffect(() => {
@@ -183,32 +182,35 @@ const ProjectAnalysis = () => {
         }
       }
 
-      // If table doesn't exist or is empty, fetch from projects
+      // If table doesn't exist or is empty, fetch from projects with proper state filtering
       if (!analysisData || analysisData.length === 0) {
-        const { data: projects, error: projectError } = await supabase
+        // Fetch TG (Telangana) projects using ilike for pattern matching
+        const { data: tgProjects, error: tgError } = await supabase
           .from('projects')
           .select('id, customer_name, phone, proposal_amount, kwh, state')
+          .ilike('state', '%telangana%')
           .neq('status', 'deleted');
 
-        if (projectError) {
-          const errorCode = (projectError as any)?.code;
-          const errorMessage = (projectError as any)?.message || String(projectError);
-          console.error('Project error:', errorCode, errorMessage);
+        // Fetch AP (Andhra Pradesh) projects using ilike for pattern matching
+        const { data: apProjects, error: apError } = await supabase
+          .from('projects')
+          .select('id, customer_name, phone, proposal_amount, kwh, state')
+          .ilike('state', '%andhra pradesh%')
+          .neq('status', 'deleted');
 
-          // If projects table is empty, just show empty state
-          if (errorCode === 'PGRST116') {
-            setProjectData([]);
-          } else {
-            throw projectError;
-          }
-        } else if (projects && projects.length > 0) {
-          const transformedProjects: ProjectData[] = projects.map((project: any, index: number) => ({
+        // Fetch Chitoor projects
+        const { data: chitoorProjects, error: chitoorError } = await supabase
+          .from('chitoor_projects')
+          .select('*');
+
+        const transformProjects = (projects: any[], state: string, startIndex: number = 1): ProjectData[] => {
+          return (projects || []).map((project: any, index: number) => ({
             id: project.id,
-            sl_no: index + 1,
+            sl_no: startIndex + index,
             customer_name: project.customer_name || '',
-            mobile_no: project.phone || '',
-            project_capacity: project.kwh || 0,
-            total_quoted_cost: project.proposal_amount || 0,
+            mobile_no: project.phone || project.mobile_no || '',
+            project_capacity: project.kwh || project.capacity || 0,
+            total_quoted_cost: project.proposal_amount || project.project_cost || 0,
             application_charges: 0,
             modules_cost: 0,
             inverter_cost: 0,
@@ -227,51 +229,17 @@ const ProjectAnalysis = () => {
             profit_right_now: 0,
             overall_profit: 0,
             project_id: project.id,
-            state: project.state || '',
+            state: state,
           }));
+        };
 
-          // Also fetch Chitoor projects for complete data
-          const { data: chitoorProjects, error: chitoorError } = await supabase
-            .from('chitoor_projects')
-            .select('*');
+        // Transform and combine all projects
+        const tgProjectsData = transformProjects(tgProjects, 'Telangana', 1);
+        const apProjectsData = transformProjects(apProjects, 'Andhra Pradesh', tgProjectsData.length + 1);
+        const chitoorProjectsData = transformProjects(chitoorProjects, 'Chitoor', tgProjectsData.length + apProjectsData.length + 1);
 
-          let allProjects = transformedProjects;
-
-          if (!chitoorError && chitoorProjects && chitoorProjects.length > 0) {
-            const chitoorTransformed: ProjectData[] = chitoorProjects.map((project: any, index: number) => ({
-              id: project.id,
-              sl_no: transformedProjects.length + index + 1,
-              customer_name: project.customer_name || '',
-              mobile_no: project.mobile_no || '',
-              project_capacity: project.capacity || 0,
-              total_quoted_cost: project.project_cost || 0,
-              application_charges: 0,
-              modules_cost: 0,
-              inverter_cost: 0,
-              structure_cost: 0,
-              hardware_cost: 0,
-              electrical_equipment: 0,
-              transport_segment: 0,
-              transport_total: 0,
-              installation_cost: 0,
-              subsidy_application: 0,
-              misc_dept_charges: 0,
-              dept_charges: 0,
-              total_exp: 0,
-              payment_received: 0,
-              pending_payment: 0,
-              profit_right_now: 0,
-              overall_profit: 0,
-              project_id: project.id,
-              state: 'Chitoor',
-            }));
-            allProjects = [...transformedProjects, ...chitoorTransformed];
-          }
-
-          setProjectData(allProjects);
-        } else {
-          setProjectData([]);
-        }
+        const allProjects = [...tgProjectsData, ...apProjectsData, ...chitoorProjectsData];
+        setProjectData(allProjects);
       } else {
         // If analysisData exists, check for Chitoor projects too
         const { data: chitoorProjects, error: chitoorError } = await supabase
