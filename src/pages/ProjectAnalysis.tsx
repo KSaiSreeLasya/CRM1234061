@@ -85,13 +85,27 @@ const ProjectAnalysis = () => {
   const [filteredData, setFilteredData] = useState<ProjectData[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'All' | 'TG' | 'AP' | 'Chitoor'>('All');
 
-  // Helper function to normalize state values for comparison
-  const normalizeState = (state: string): string => {
+  // Helper function to categorize state into TG, AP, or Chitoor
+  const getStateCategory = (state: string): string => {
     const normalized = state.toLowerCase().trim();
-    if (normalized === 'tg' || normalized === 'telangana') return 'tg';
-    if (normalized === 'ap' || normalized === 'andhra pradesh') return 'ap';
-    if (normalized === 'chitoor') return 'chitoor';
-    return normalized;
+
+    // Check if state contains Telangana
+    if (normalized.includes('telangana') || normalized === 'tg') {
+      return 'TG';
+    }
+
+    // Check if state contains Andhra Pradesh
+    if (normalized.includes('andhra pradesh') || normalized === 'ap') {
+      return 'AP';
+    }
+
+    // Check if it's Chitoor
+    if (normalized === 'chitoor') {
+      return 'Chitoor';
+    }
+
+    // Any other state goes to "Other" (will be in Chitoor category for now)
+    return 'Other';
   };
 
   useEffect(() => {
@@ -105,9 +119,8 @@ const ProjectAnalysis = () => {
     // Apply state filter to project data
     if (selectedFilter !== 'All' && projectData.length > 0) {
       const filtered = projectData.filter((project: any) => {
-        const projectState = normalizeState(project.state || '');
-        const filterState = normalizeState(selectedFilter);
-        return projectState === filterState;
+        const projectCategory = getStateCategory(project.state || '');
+        return projectCategory === selectedFilter;
       });
       setFilteredData(filtered);
     } else {
