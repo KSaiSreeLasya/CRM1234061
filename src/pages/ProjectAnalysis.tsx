@@ -85,6 +85,15 @@ const ProjectAnalysis = () => {
   const [filteredData, setFilteredData] = useState<ProjectData[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'All' | 'TG' | 'AP' | 'Chitoor'>('All');
 
+  // Helper function to normalize state values for comparison
+  const normalizeState = (state: string): string => {
+    const normalized = state.toLowerCase().trim();
+    if (normalized === 'tg' || normalized === 'telangana') return 'tg';
+    if (normalized === 'ap' || normalized === 'andhra pradesh') return 'ap';
+    if (normalized === 'chitoor') return 'chitoor';
+    return normalized;
+  };
+
   useEffect(() => {
     if (isAuthenticated && isAnalysisUnlocked) {
       checkAndInitializeData();
@@ -96,8 +105,9 @@ const ProjectAnalysis = () => {
     // Apply state filter to project data
     if (selectedFilter !== 'All' && projectData.length > 0) {
       const filtered = projectData.filter((project: any) => {
-        const projectState = project.state || '';
-        return projectState.toLowerCase() === selectedFilter.toLowerCase();
+        const projectState = normalizeState(project.state || '');
+        const filterState = normalizeState(selectedFilter);
+        return projectState === filterState;
       });
       setFilteredData(filtered);
     } else {
