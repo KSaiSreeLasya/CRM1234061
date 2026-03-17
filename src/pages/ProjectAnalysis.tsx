@@ -184,26 +184,18 @@ const ProjectAnalysis = () => {
 
       // If table doesn't exist or is empty, fetch from projects with proper state filtering
       if (!analysisData || analysisData.length === 0) {
-        // Fetch TG (Telangana) projects using ilike for pattern matching
-        const { data: tgProjects, error: tgError } = await supabase
+        // Fetch ALL projects first without state filter
+        const { data: allProjectsList } = await supabase
           .from('projects')
           .select('id, customer_name, phone, proposal_amount, kwh, state')
-          .ilike('state', '%telangana%')
-          .neq('status', 'deleted');
-
-        // Fetch AP (Andhra Pradesh) projects using ilike for pattern matching
-        const { data: apProjects, error: apError } = await supabase
-          .from('projects')
-          .select('id, customer_name, phone, proposal_amount, kwh, state')
-          .ilike('state', '%andhra pradesh%')
           .neq('status', 'deleted');
 
         // Fetch Chitoor projects
-        const { data: chitoorProjects, error: chitoorError } = await supabase
+        const { data: chitoorProjects } = await supabase
           .from('chitoor_projects')
           .select('*');
 
-        const transformProjects = (projects: any[], state: string, startIndex: number = 1): ProjectData[] => {
+        const transformProjects = (projects: any[], startIndex: number = 1): ProjectData[] => {
           return (projects || []).map((project: any, index: number) => ({
             id: project.id,
             sl_no: startIndex + index,
@@ -229,16 +221,43 @@ const ProjectAnalysis = () => {
             profit_right_now: 0,
             overall_profit: 0,
             project_id: project.id,
-            state: state,
+            state: project.state || '',
           }));
         };
 
-        // Transform and combine all projects
-        const tgProjectsData = transformProjects(tgProjects, 'Telangana', 1);
-        const apProjectsData = transformProjects(apProjects, 'Andhra Pradesh', tgProjectsData.length + 1);
-        const chitoorProjectsData = transformProjects(chitoorProjects, 'Chitoor', tgProjectsData.length + apProjectsData.length + 1);
+        // Transform all projects - keep original state value
+        const transformedProjects = transformProjects(allProjectsList, 1);
 
-        const allProjects = [...tgProjectsData, ...apProjectsData, ...chitoorProjectsData];
+        // Transform Chitoor projects
+        const chitoorProjectsData = (chitoorProjects || []).map((project: any, index: number) => ({
+          id: project.id,
+          sl_no: transformedProjects.length + index + 1,
+          customer_name: project.customer_name || '',
+          mobile_no: project.mobile_no || '',
+          project_capacity: project.capacity || 0,
+          total_quoted_cost: project.project_cost || 0,
+          application_charges: 0,
+          modules_cost: 0,
+          inverter_cost: 0,
+          structure_cost: 0,
+          hardware_cost: 0,
+          electrical_equipment: 0,
+          transport_segment: 0,
+          transport_total: 0,
+          installation_cost: 0,
+          subsidy_application: 0,
+          misc_dept_charges: 0,
+          dept_charges: 0,
+          total_exp: 0,
+          payment_received: 0,
+          pending_payment: 0,
+          profit_right_now: 0,
+          overall_profit: 0,
+          project_id: project.id,
+          state: 'Chitoor',
+        }));
+
+        const allProjects = [...transformedProjects, ...chitoorProjectsData];
         setProjectData(allProjects);
       } else {
         // If analysisData exists, check for Chitoor projects too
