@@ -139,6 +139,7 @@ const ProjectAnalysis = () => {
   const [projectData, setProjectData] = useState<ProjectData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectData | null>(null);
+  const [transportSegmentInput, setTransportSegmentInput] = useState('');
   const [isMigrating, setIsMigrating] = useState(false);
   const [showMigrationPrompt, setShowMigrationPrompt] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -450,6 +451,7 @@ const ProjectAnalysis = () => {
           return {
             ...row,
             state: row.state || stateByProjectId.get(projectId) || '',
+            transport_segments: Array.isArray(row.transport_segments) ? row.transport_segments : [],
             payment_received: row.payment_received || paymentData.paid_amount || 0,
             pending_payment: row.pending_payment || paymentData.balance_amount || 0,
           };
@@ -520,6 +522,7 @@ const ProjectAnalysis = () => {
 
   const handleEditProject = async (project: ProjectData) => {
     setSelectedProject(project);
+    setTransportSegmentInput('');
 
     // Fetch ALL payment receipts including advance payments
     try {
@@ -615,6 +618,7 @@ const ProjectAnalysis = () => {
         hardware_cost: selectedProject.hardware_cost || 0,
         electrical_equipment: selectedProject.electrical_equipment || 0,
         transport_segment: selectedProject.transport_segment || 0,
+        transport_segments: Array.isArray(selectedProject.transport_segments) ? selectedProject.transport_segments : [],
         transport_total: selectedProject.transport_total || 0,
         installation_cost: selectedProject.installation_cost || 0,
         subsidy_application: selectedProject.subsidy_application || 0,
@@ -628,7 +632,6 @@ const ProjectAnalysis = () => {
         project_id: selectedProject.project_id,
         project_start_date: selectedProject.project_start_date,
         completion_date: selectedProject.completion_date,
-        state: selectedProject.state,
         created_at: selectedProject.created_at,
         updated_at: new Date().toISOString(),
       };
@@ -1476,6 +1479,64 @@ const ProjectAnalysis = () => {
                         }
                       />
                     </FormControl>
+
+                    <Box>
+                      <FormLabel fontSize="sm">Transport Segments</FormLabel>
+                      <HStack spacing={2} align="start" mb={3}>
+                        <Input
+                          placeholder="Add transport segment"
+                          value={transportSegmentInput}
+                          onChange={(e) => setTransportSegmentInput(e.target.value)}
+                        />
+                        <Button
+                          onClick={() => {
+                            const segment = transportSegmentInput.trim();
+                            if (!segment || !selectedProject) return;
+
+                            const currentSegments = Array.isArray(selectedProject.transport_segments)
+                              ? selectedProject.transport_segments
+                              : [];
+
+                            setSelectedProject({
+                              ...selectedProject,
+                              transport_segments: [...currentSegments, segment],
+                            });
+                            setTransportSegmentInput('');
+                          }}
+                          colorScheme="blue"
+                          variant="outline"
+                        >
+                          Add
+                        </Button>
+                      </HStack>
+                      <VStack spacing={2} align="stretch">
+                        {(selectedProject.transport_segments || []).length > 0 ? (
+                          (selectedProject.transport_segments || []).map((segment, index) => (
+                            <HStack key={`${segment}-${index}`} justify="space-between" p={3} bg="gray.50" borderRadius="md">
+                              <Text fontSize="sm">{segment}</Text>
+                              <IconButton
+                                aria-label="Remove transport segment"
+                                icon={<DeleteIcon />}
+                                size="sm"
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={() => {
+                                  const updatedSegments = (selectedProject.transport_segments || []).filter((_, i) => i !== index);
+                                  setSelectedProject({
+                                    ...selectedProject,
+                                    transport_segments: updatedSegments,
+                                  });
+                                }}
+                              />
+                            </HStack>
+                          ))
+                        ) : (
+                          <Text fontSize="sm" color="gray.500">
+                            No transport segments added yet.
+                          </Text>
+                        )}
+                      </VStack>
+                    </Box>
 
                     <FormControl>
                       <FormLabel fontSize="sm">Transport Total (₹)</FormLabel>
