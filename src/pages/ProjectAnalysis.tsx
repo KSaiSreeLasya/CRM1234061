@@ -65,6 +65,7 @@ interface ProjectData {
   hardware_cost?: number;
   electrical_equipment?: number;
   transport_segment?: number;
+  transport_segments?: string[];
   transport_total?: number;
   installation_cost?: number;
   subsidy_application?: number;
@@ -345,6 +346,7 @@ const ProjectAnalysis = () => {
             hardware_cost: 0,
             electrical_equipment: 0,
             transport_segment: 0,
+            transport_segments: [],
             transport_total: 0,
             installation_cost: 0,
             subsidy_application: 0,
@@ -387,6 +389,7 @@ const ProjectAnalysis = () => {
                 hardware_cost: 0,
                 electrical_equipment: 0,
                 transport_segment: 0,
+                transport_segments: [],
                 transport_total: 0,
                 installation_cost: 0,
                 subsidy_application: 0,
@@ -479,6 +482,7 @@ const ProjectAnalysis = () => {
               hardware_cost: 0,
               electrical_equipment: 0,
               transport_segment: 0,
+              transport_segments: [],
               transport_total: 0,
               installation_cost: 0,
               subsidy_application: 0,
