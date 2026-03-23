@@ -58,6 +58,7 @@ export const migrateProjectsToAnalysis = async (): Promise<MigrationResult> => {
       hardware_cost: 0,
       electrical_equipment: 0,
       transport_segment: 0,
+      transport_segments: [],
       transport_total: 0,
       installation_cost: 0,
       subsidy_application: 0,
